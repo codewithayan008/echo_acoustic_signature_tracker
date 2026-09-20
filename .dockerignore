@@ -1,0 +1,13 @@
+.env
+client_secret_*.json
+.venv/
+__pycache__/
+*.pyc
+echo.db
+.echo.key
+.echo-session.key
+datasets/raw/
+models/*.joblib
+models/*.json
+.git/
+Unconfirmed*

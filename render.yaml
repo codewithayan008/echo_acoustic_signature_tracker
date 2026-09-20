@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: echo-acoustic-monitor
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ECHO_DATA_DIR
+        value: /data
+      - key: ECHO_ALLOW_DEV_OTP
+        value: "0"
+      - key: ECHO_SESSION_SECRET
+        generateValue: true
+    disk:
+      name: echo-data
+      mountPath: /data
+      sizeGB: 10

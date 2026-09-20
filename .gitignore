@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+echo.db
+.env
+client_secret_*.json
+.echo.key
+.echo-session.key
+datasets/raw/
+models/*.joblib
+models/*.json

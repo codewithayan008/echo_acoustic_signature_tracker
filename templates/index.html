@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ECHO / acoustic health monitor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    .protocol-step { border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; cursor: pointer; font-family: inherit; }
+    .protocol-step:hover strong, .protocol-step:focus-visible strong, .protocol-step.active strong { color: var(--deep); }
+    .protocol-step:focus-visible { outline: 2px solid var(--deep); outline-offset: 4px; }
+    @keyframes echo-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes stage-bump { 0% { transform: translateX(0); } 45% { transform: translateX(5px); } 100% { transform: translateX(0); } }
+    .intro { animation: echo-rise .7s ease both; }
+    .grid .panel { animation: echo-rise .7s .12s ease both; }
+    .lower-grid .panel { animation: echo-rise .7s .24s ease both; }
+    .protocol-step.stage-bump { animation: stage-bump .45s ease; }
+    .ai-result { border-left: 2px solid var(--mint); color: #cbd9d0; font-size: 12px; line-height: 1.5; margin: 18px 0; padding-left: 12px; }
+    .report-button { width: 100%; border: 1px solid #64756a; background: transparent; color: var(--mint); cursor: pointer; padding: 10px; font: 500 10px 'DM Mono', monospace; text-transform: uppercase; }
+    .report-button:disabled { cursor: not-allowed; opacity: .45; }
+    .auth-screen { display: grid; min-height: 100vh; place-items: center; padding: 24px; background: radial-gradient(circle at 80% 10%, #dbeee0 0, transparent 28rem), var(--paper); }
+    .shell { display: none; }
+    body.authenticated .shell { display: block; }
+    body.authenticated .landing-page, body.authenticated .auth-screen { display: none; }
+    .landing-page { min-height: 100vh; padding: 25px 5vw 0; background: radial-gradient(circle at 4% 8%, #e0f1e3 0, transparent 30rem), var(--paper); overflow: hidden; }
+    .landing-nav { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 19px; }
+    .landing-nav-actions { display: flex; align-items: center; gap: 17px; }
+    .nav-status { color: var(--muted); font: 500 10px 'DM Mono', monospace; text-transform: uppercase; }
+    .nav-status i, .pulse-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: #55b879; box-shadow: 0 0 0 5px rgba(85,184,121,.13); }
+    .nav-login, .nav-register, .hero-primary { cursor: pointer; font: 500 11px 'DM Mono', monospace; }
+    .nav-login { border: 0; background: transparent; color: var(--ink); padding: 10px; }
+    .nav-register, .hero-primary { border: 0; background: var(--ink); color: #fff; padding: 12px 16px; }
+    .nav-register span, .hero-primary span { color: var(--mint); font-size: 15px; margin-left: 8px; }
+    .landing-hero { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 7vw; max-width: 1280px; margin: 0 auto; padding: 8vh 0 7vh; }
+    .hero-copy { animation: echo-rise .8s ease both; }
+    .hero-copy h1 { max-width: 700px; margin: 0 0 25px; font-size: clamp(44px, 6vw, 84px); line-height: .95; letter-spacing: -3px; }
+    .hero-copy h1 em { color: var(--deep); font-family: 'Playfair Display', serif; font-weight: 600; }
+    .hero-lede { max-width: 480px; color: var(--muted); font-size: 17px; line-height: 1.55; }
+    .hero-actions { display: flex; align-items: center; gap: 17px; margin-top: 34px; }
+    .hero-caption { max-width: 150px; color: var(--muted); font: 9px 'DM Mono', monospace; line-height: 1.4; text-transform: uppercase; }
+    .hero-visual { position: relative; min-height: 470px; overflow: hidden; animation: visual-in .9s .15s ease both; }
+    .hero-visual img { width: 100%; height: 470px; object-fit: cover; filter: saturate(.72) contrast(.98); }
+    .visual-overlay { position: absolute; top: 18px; left: 18px; padding: 9px 12px; background: rgba(23,35,29,.85); color: #fff; font: 10px 'DM Mono', monospace; text-transform: uppercase; }
+    .waveform { position: absolute; right: 18px; bottom: 21px; display: flex; align-items: center; gap: 4px; height: 42px; padding: 0 12px; background: rgba(23,35,29,.88); }
+    .waveform i { display: block; width: 3px; height: 14px; background: var(--mint); animation: wave 1.3s ease-in-out infinite alternate; }
+    .waveform i:nth-child(2n) { animation-delay: -.4s; }.waveform i:nth-child(3n) { animation-delay: -.8s; }.waveform i:nth-child(4n) { height: 27px; }
+    .landing-strip { display: grid; grid-template-columns: repeat(3, 1fr) 1.5fr; max-width: 1280px; margin: 0 auto; border-top: 1px solid var(--line); padding: 21px 0; }
+    .landing-strip div { display: flex; align-items: center; gap: 11px; border-right: 1px solid var(--line); color: var(--muted); font: 10px 'DM Mono', monospace; text-transform: uppercase; }
+    .landing-strip strong { color: var(--deep); font-size: 15px; }.landing-strip p { margin: 0; padding-left: 24px; align-self: center; color: var(--muted); font: 9px 'DM Mono', monospace; text-transform: uppercase; }
+    @keyframes visual-in { from { opacity: 0; transform: translateX(28px) scale(.98); } to { opacity: 1; transform: translateX(0) scale(1); } }
+    @keyframes wave { from { transform: scaleY(.45); } to { transform: scaleY(1.5); } }
+    .auth-card { width: min(420px, 100%); background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); padding: 34px; animation: echo-rise .6s ease both; }
+    .auth-card h1 { font-size: 38px; letter-spacing: -1px; margin: 0 0 8px; }
+    .auth-copy, .auth-note { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .auth-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--line); margin: 25px 0 20px; }
+    .auth-tab { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); padding: 0 0 11px; cursor: pointer; font: 500 11px 'DM Mono', monospace; text-transform: uppercase; }
+    .auth-tab.active { border-color: var(--deep); color: var(--deep); }
+    .auth-form { display: grid; gap: 14px; }
+    .auth-form label { display: grid; gap: 7px; color: var(--muted); font: 500 10px 'DM Mono', monospace; text-transform: uppercase; }
+    .auth-form input, .captcha-row input { border: 1px solid var(--line); padding: 11px; color: var(--ink); font: 13px 'DM Sans', sans-serif; }
+    .auth-form button, .google-button { border: 0; background: var(--ink); color: white; padding: 12px; cursor: pointer; font: 500 11px 'DM Mono', monospace; }
+    .auth-form button span { font-size: 15px; margin-left: 7px; }
+    .google-button { width: 100%; margin-top: 14px; background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    .captcha-row { display: grid; grid-template-columns: 1fr 100px; gap: 8px; align-items: center; color: var(--deep); font: 500 12px 'DM Mono', monospace; }
+    .auth-message { min-height: 18px; color: var(--deep); font-size: 12px; line-height: 1.4; }
+    .logout-button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font: 500 10px 'DM Mono', monospace; margin-left: 10px; text-transform: uppercase; }
+    .hidden { display: none !important; }
+    .guide-widget { position: fixed; z-index: 5; right: 24px; bottom: 24px; }
+    .guide-orb { display: flex; align-items: center; gap: 8px; border: 0; border-radius: 30px; background: var(--ink); color: #fff; box-shadow: 0 12px 28px rgba(23,35,29,.2); padding: 12px 17px; cursor: pointer; font: 500 11px 'DM Mono', monospace; animation: guide-float 3s ease-in-out infinite; }
+    .guide-orb span { color: var(--mint); font-size: 18px; }
+    .guide-panel { display: none; width: min(350px, calc(100vw - 34px)); margin-bottom: 11px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 20px 55px rgba(23,35,29,.18); }
+    .guide-widget.open .guide-panel { display: block; animation: echo-rise .3s ease both; }
+    .guide-widget.open .guide-orb { display: none; }
+    .guide-heading { display: flex; justify-content: space-between; align-items: start; background: var(--ink); color: #fff; padding: 15px 17px; }
+    .guide-heading strong, .guide-heading small { display: block; }
+    .guide-heading strong { font-size: 14px; }
+    .guide-heading small { color: var(--mint); font: 9px 'DM Mono', monospace; margin-top: 4px; text-transform: uppercase; }
+    .guide-heading button { border: 0; background: transparent; color: #fff; cursor: pointer; font-size: 20px; line-height: 1; }
+    .guide-messages { display: grid; gap: 9px; max-height: 240px; overflow-y: auto; padding: 14px; background: #f8fbf8; }
+    .guide-bubble { max-width: 88%; border-radius: 3px; padding: 10px 12px; font-size: 12px; line-height: 1.45; }
+    .guide-bubble-agent { background: var(--mint); justify-self: start; }
+    .guide-bubble-user { background: var(--ink); color: #fff; justify-self: end; }
+    .guide-form { display: flex; gap: 8px; border-top: 1px solid var(--line); padding: 10px; }
+    .guide-form input { min-width: 0; flex: 1; border: 1px solid var(--line); padding: 9px; font-size: 12px; }
+    .guide-form button { width: 36px; border: 0; background: var(--deep); color: #fff; cursor: pointer; }
+    .guide-disclaimer { display: block; color: var(--muted); font: 9px 'DM Mono', monospace; line-height: 1.4; padding: 0 14px 12px; text-transform: uppercase; }
+    @keyframes guide-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @media (max-width: 800px) { .landing-hero { grid-template-columns: 1fr; padding-top: 52px; }.hero-visual { min-height: 300px; }.hero-visual img { height: 300px; }.landing-strip { grid-template-columns: 1fr 1fr; gap: 14px; }.landing-strip div:nth-child(2) { border: 0; }.landing-strip p { grid-column: 1 / -1; padding: 10px 0 0; } }
+    @media (max-width: 600px) { .guide-widget { right: 17px; bottom: 17px; }.nav-status { display: none; }.landing-nav-actions { gap: 4px; }.hero-actions { align-items: start; flex-direction: column; } }
+    @media (prefers-reduced-motion: reduce) { .guide-orb { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .intro, .grid .panel, .lower-grid .panel, .protocol-step.stage-bump { animation: none; } }
+  </style>
+</head>
+<body>
+  <section class="landing-page" id="landing-page">
+    <nav class="landing-nav">
+      <div class="brand"><span class="brand-mark">E</span><span>ECHO</span></div>
+      <div class="landing-nav-actions"><span class="nav-status"><i></i> edge-first care</span><button class="nav-login" data-open-auth="login" type="button">Log in</button><button class="nav-register" data-open-auth="register" type="button">Create account <span>↗</span></button></div>
+    </nav>
+    <div class="landing-hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Personal acoustic health / 01</p>
+        <h1>Hear the change<br><em>before it feels loud.</em></h1>
+        <p class="hero-lede">ECHO builds a private acoustic picture of your breathing, voice, and cough, then watches for meaningful change over time.</p>
+        <div class="hero-actions"><button class="hero-primary" data-open-auth="register" type="button">Start your baseline <span>↗</span></button><span class="hero-caption">Local processing · Built for longitudinal care</span></div>
+      </div>
+      <div class="hero-visual"><img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1000&q=85" alt="Clinician using a stethoscope for a respiratory health check"><div class="visual-overlay"><span class="pulse-dot"></span><span>listening locally</span></div><div class="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+    </div>
+    <div class="landing-strip"><div><strong>01</strong><span>Personal baseline</span></div><div><strong>02</strong><span>Multi-signal change</span></div><div><strong>03</strong><span>Clear next steps</span></div><p>Research prototype · Not a diagnostic device</p></div>
+  </section>
+  <section class="auth-screen hidden" id="auth-screen">
+    <div class="auth-card">
+      <p class="eyebrow">ECHO / secure access</p>
+      <h1>Welcome back.</h1>
+      <p class="auth-copy">Your recordings and personal baseline belong to your account.</p>
+      <div class="auth-tabs"><button class="auth-tab active" data-auth-mode="login" type="button">Log in</button><button class="auth-tab" data-auth-mode="register" type="button">Create account</button></div>
+      <form id="login-form" class="auth-form">
+        <label>Email<input name="email" type="email" required autocomplete="email"></label>
+        <label>Password<input name="password" type="password" required autocomplete="current-password"></label>
+        <button type="submit">Log in <span>↗</span></button>
+      </form>
+      <form id="register-form" class="auth-form hidden">
+        <label>Your name<input name="display_name" type="text" required autocomplete="name" maxlength="80" placeholder="Ayan"></label>
+        <label>Email<input name="email" type="email" required autocomplete="email"></label>
+        <div class="captcha-row"><span id="captcha-question">Loading CAPTCHA...</span><input name="captcha" inputmode="numeric" placeholder="Answer" required><input id="captcha-id" name="captcha_id" type="hidden"></div>
+        <button type="button" id="send-otp">Send email code <span>↗</span></button>
+        <label class="hidden" id="otp-field">Email code<input name="otp" inputmode="numeric" autocomplete="one-time-code"></label>
+        <button type="button" class="hidden" id="verify-otp">Verify email <span>↗</span></button>
+        <label class="hidden" id="password-field">Create password<input name="password" type="password" minlength="10" autocomplete="new-password"></label>
+        <button type="submit" class="hidden" id="create-account">Create account <span>↗</span></button>
+      </form>
+      <button class="google-button" id="google-login" type="button">Continue with Google</button>
+      <p class="auth-message" id="auth-message" role="status"></p>
+      <small class="auth-note">OTP is sent by Gmail when SMTP is configured.</small>
+    </div>
+  </section>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">E</span><span>ECHO</span></div>
+      <div class="device-status"><span class="status-dot"></span><span id="account-email"></span><button id="logout" class="logout-button" type="button">Log out</button></div>
+    </header>
+
+    <section class="intro">
+      <p class="eyebrow">Personal acoustic baseline / MVP</p>
+      <h1>Listen for change,<br><em>not labels.</em></h1>
+      <p class="lede">A private, local-first assessment that compares today's respiratory acoustic profile with your own normal.</p>
+    </section>
+
+    <section class="grid">
+      <article class="panel assessment-panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">01 / Capture</p><h2>New assessment</h2></div>
+          <span class="duration">~ 55 sec guided</span>
+        </div>
+        <div class="protocol" aria-label="Assessment stages">
+          <button class="protocol-step active" type="button" data-step="0"><span>01</span><strong>Normal breathing</strong><small>20 seconds</small></button>
+          <button class="protocol-step" type="button" data-step="1"><span>02</span><strong>Deep breathing</strong><small>15 seconds</small></button>
+          <button class="protocol-step" type="button" data-step="2"><span>03</span><strong>Say "aaa"</strong><small>10 seconds</small></button>
+          <button class="protocol-step" type="button" data-step="3"><span>04</span><strong>Two coughs</strong><small>10 seconds</small></button>
+        </div>
+        <form id="session-form">
+          <label class="file-drop" for="audio"><span class="upload-icon">↑</span><span id="file-label">Drop a WAV recording here or browse</span><small>Local processing only · WAV or FLAC · 10 MB max</small></label>
+          <input id="audio" name="audio" type="file" accept="audio/wav,audio/x-wav,audio/flac,.wav,.flac" required>
+          <input id="stage" name="stage" type="hidden" value="normal_breathing">
+          <div class="form-row"><select name="kind" aria-label="Session type"><option value="assessment">Assessment</option><option value="baseline">Baseline sample</option></select><button type="submit" id="submit">Analyze recording <span>↗</span></button></div>
+        </form>
+        <p id="message" class="message" role="status"></p>
+      </article>
+
+      <article class="panel score-panel">
+        <div class="panel-heading"><div><p class="eyebrow">02 / Personal signal</p><h2>Deviation score</h2></div><span class="help">?</span></div>
+        <div class="score-wrap"><div class="score" id="score">--</div><div class="score-label" id="score-label">Awaiting assessment</div></div>
+        <div class="meter"><span id="meter-fill"></span></div>
+        <p class="score-note" id="score-note">Create at least one baseline sample to begin tracking change.</p>
+        <div class="ai-result" id="ai-result">Your plain-language result will appear after analysis.</div>
+        <button class="report-button" id="report-summary" type="button" disabled>Summarize this report <span>✦</span></button>
+        <div class="legend"><span><i class="green"></i> within baseline</span><span><i class="orange"></i> review change</span></div>
+      </article>
+    </section>
+
+    <section class="lower-grid">
+      <article class="panel trend-panel"><div class="panel-heading"><div><p class="eyebrow">03 / Longitudinal view</p><h2>Recent sessions</h2></div><span class="count" id="baseline-count">0 baseline samples</span></div><div class="chart" id="chart"><div class="empty">Your session trend will appear here.</div></div></article>
+      <article class="panel explain-panel"><div class="panel-heading"><div><p class="eyebrow">04 / Explainability</p><h2>Largest shifts</h2></div></div><div id="contributions" class="explain-empty">Run an assessment to see which signals moved most from your baseline.</div><div class="privacy-note"><span>⌁</span><span><strong>Private by default.</strong><br>Audio stays on this device. Only feature summaries are stored.</span></div></article>
+    </section>
+    <footer>Research prototype · ECHO does not diagnose, rule out, or treat any medical condition.</footer>
+  </main>
+  <aside class="guide-widget hidden" id="guide-widget" aria-label="ECHO Guide">
+    <div class="guide-panel" id="guide-panel">
+      <div class="guide-heading"><div><strong>ECHO Guide</strong><small>local medical companion</small></div><button id="guide-close" type="button" aria-label="Close guide">×</button></div>
+      <div class="guide-messages" id="guide-messages"><div class="guide-bubble guide-bubble-agent">Hello. I can explain your ECHO result in simple English. I cannot diagnose illness. How are you feeling today?</div></div>
+      <form class="guide-form" id="guide-form"><input id="guide-input" autocomplete="off" placeholder="Ask about your result..." maxlength="1000"><button type="submit" aria-label="Send message">↗</button></form>
+      <small class="guide-disclaimer">For emergencies, contact local emergency services. Audio stays on this device.</small>
+    </div>
+    <button class="guide-orb" id="guide-open" type="button"><span>✦</span><strong>Guide</strong></button>
+  </aside>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
